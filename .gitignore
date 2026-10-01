@@ -8,7 +8,7 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 *.auto.tfvars
-*_auto.tfvars.json
+*.auto.tfvars.json
 *.plan
 *.tfplan
 localstack/volume/
