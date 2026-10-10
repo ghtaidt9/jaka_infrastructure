@@ -1,0 +1,73 @@
+name: terraform
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check -recursive
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir:
+          - modules/network
+          - modules/security
+          - modules/storage
+          - modules/alb
+          - modules/postgres
+          - modules/redis
+          - modules/service
+          - modules/observability
+          - stack
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: init + validate + test
+        working-directory: ${{ matrix.dir }}
+        run: |
+          terraform init -input=false
+          terraform validate
+          terraform test
+
+  validate-envs:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # env: [dev, prod]
+        env: [dev]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: init (no backend) + validate
+        working-directory: envs/${{ matrix.env }}
+        run: |
+          terraform init -input=false -backend=false
+          terraform validate
+
+  tflint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+      - run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl"
+
+  checkov:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bridgecrewio/checkov-action@v12
+        with:
+          directory: .
+          framework: terraform
+          quiet: true
