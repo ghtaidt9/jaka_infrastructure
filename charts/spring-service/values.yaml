@@ -1,0 +1,17 @@
+image:
+  repository: ""
+  tag: "v1"
+  pullPolicy: IfNotPresent
+port: 8080
+contextPath: ""
+replicaCount: 2
+resources:
+  requests: { cpu: 250m, memory: 512Mi }
+  limits: { memory: 768Mi }
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPU: 50
+env: {}
+secretName: ""

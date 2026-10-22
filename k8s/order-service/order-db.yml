@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata: { name: order-db, namespace: dev }
+spec:
+  clusterIP: None
+  selector: { app: order-db }
+  ports: [{ port: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: order-db, namespace: dev }
+spec:
+  serviceName: order-db
+  replicas: 1
+  selector:
+    matchLabels: { app: order-db }
+  template:
+    metadata:
+      labels: { app: order-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: orderdb }
+            - { name: POSTGRES_USER, value: order_admin }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                { secretKeyRef: { name: order-db-admin, key: password } }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec:
+              { command: ["pg_isready", "-U", "order_admin", "-d", "orderdb"] }
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources: { requests: { storage: 1Gi } }
+
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata: { name: order-db, namespace: dev }
+# spec:
+#   replicas: 1
+#   selector: { matchLabels: { app: order-db } }
+#   template:
+#     metadata: { labels: { app: order-db } }
+#     spec:
+#       containers:
+#         - name: postgres
+#           image: postgres:16-alpine
+#           ports: [{ containerPort: 5432 }]
+#           env:
+#             - { name: POSTGRES_DB, value: orderdb }
+#             - { name: POSTGRES_USER, value: order_user }
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 {
+#                   secretKeyRef:
+#                     {
+#                       name: order-service-secret,
+#                       key: SPRING_DATASOURCE_PASSWORD,
+#                     },
+#                 }
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata: { name: order-db, namespace: dev }
+# spec:
+#   selector: { app: order-db }
+#   ports: [{ port: 5432 }]

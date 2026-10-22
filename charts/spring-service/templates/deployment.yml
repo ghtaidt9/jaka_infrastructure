@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "spring-service.fullname" . }}
+  labels: { app: {{ include "spring-service.fullname" . }} }
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels: { app: {{ include "spring-service.fullname" .}} }
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxSurge: 1, maxUnavailable: 0 }
+  template:
+    metadata:
+      labels: { app: {{include "spring-service.fullname" . }} }
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yml") . | sha256sum }}
+    spec:
+      containers:
+        - name: app
+          image: "{{ required "image.repository is required" .Values.image.repository}}:{{.Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy}}
+          ports:
+            - containerPort: {{ .Values.port }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          envFrom:
+            - configMapRef: { name: {{ include "spring-service.fullname" . }} }
+            {{- with .Values.secretName }}
+            - secretRef: { name: {{ . }} }
+            {{- end }}
+          env:
+            - { name: JAVA_TOOL_OPTIONS, value: "-XX:MaxRAMPercentage=75" }
+            - { name: MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED, value: "true" }
+            - { name: MANAGEMENT_ENDPOINT_HEALTH_GROUP_READINESS_INCLUDE, value: "readinessState,db" }
+          startupProbe:
+            httpGet: { path: {{ .Values.contextPath }}/actuator/health/liveness, port: {{ .Values.port }} }
+            periodSeconds: 5
+            failureThreshold: 24
+          readinessProbe:
+            httpGet: { path: {{ .Values.contextPath }}/actuator/health/readiness, port: {{ .Values.port }} }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: {{ .Values.contextPath }}/actuator/health/liveness, port: {{ .Values.port }} }
+            periodSeconds: 10
+            failureThreshold: 3
+          lifecycle:
+            preStop:
+              sleep: { seconds: 5 }

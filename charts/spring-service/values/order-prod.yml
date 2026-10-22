@@ -1,0 +1,17 @@
+image: { repository: order-service }
+port: 8081
+contextPath: /api/orders
+env:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://order-db:5432/orderdb
+  SPRING_DATASOURCE_USERNAME: order_user
+  SPRING_DATA_REDIS_HOST: order-redis
+  KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
+secretName: order-service-secret
+replicaCount: 4
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { memory: 1536Mi }
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 10

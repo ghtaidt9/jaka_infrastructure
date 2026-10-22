@@ -1,0 +1,11 @@
+# kind-config.yaml
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: jaka
+nodes:
+  - role: control-plane
+    extraPortMappings:        # dùng ở tuần 7 cho Gateway/Ingress
+      - containerPort: 30080
+        hostPort: 8080
+  - role: worker
+  - role: worker

@@ -1,0 +1,77 @@
+apiVersion: v1
+kind: Service
+metadata: { name: payment-db, namespace: dev }
+spec:
+  clusterIP: None
+  selector: { app: payment-db }
+  ports: [{ port: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: payment-db, namespace: dev }
+spec:
+  serviceName: payment-db
+  replicas: 1
+  selector:
+    matchLabels: { app: payment-db }
+  template:
+    metadata:
+      labels: { app: payment-db }
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          env:
+            - { name: POSTGRES_DB, value: paymentdb }
+            - { name: POSTGRES_USER, value: payment_admin }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                { secretKeyRef: { name: payment-db-admin, key: password } }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          volumeMounts: 
+            - { name: data, mountPath: /var/lib/postgresql/data }
+          readinessProbe:
+            exec:
+              { command: ["pg_isready", "-U", "payment_admin", "-d", paymentdb] }
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: standard
+        resources: { requests: { storage: 1Gi } }
+
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata: { name: payment-db, namespace: dev }
+# spec:
+#   replicas: 1
+#   selector: { matchLabels: { app: payment-db } }
+#   template:
+#     metadata: { labels: { app: payment-db } }
+#     spec:
+#       containers:
+#         - name: postgres
+#           image: postgres:16-alpine
+#           ports: [{ containerPort: 5432 }]
+#           env:
+#             - { name: POSTGRES_DB, value: paymentdb }
+#             - { name: POSTGRES_USER, value: paymentuser }
+#             - name: POSTGRES_PASSWORD
+#               valueFrom:
+#                 {
+#                   secretKeyRef:
+#                     {
+#                       name: payment-service-secret,
+#                       key: SPRING_DATASOURCE_PASSWORD,
+#                     },
+#                 }
+# ---
+# apiVersion: v1
+# kind: Service
+# metadata: { name: payment-db, namespace: dev }
+# spec:
+#   selector: { app: payment-db }
+#   ports: [{ port: 5432 }]
