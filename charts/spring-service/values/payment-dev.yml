@@ -5,5 +5,6 @@ env:
   SPRING_DATASOURCE_URL: jdbc:postgresql://payment-db:5432/paymentdb
   SPRING_DATASOURCE_USERNAME: payment_user
   SPRING_DATA_REDIS_HOST: payment-redis
+  SPRING_DATA_REDIS_PORT: "6379"
   KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
 secretName: payment-service-secret

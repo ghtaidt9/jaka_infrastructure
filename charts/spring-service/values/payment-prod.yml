@@ -1,0 +1,17 @@
+image: { repository: payment-service }
+port: 8082
+contextPath: /api/payments
+env:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://payment-db:5432/paymentdb
+  SPRING_DATASOURCE_USERNAME: payment_user
+  SPRING_DATA_REDIS_HOST: payment-redis
+  KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
+secretName: payment-service-secret
+replicaCount: 4
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { memory: 1536Mi }
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 10

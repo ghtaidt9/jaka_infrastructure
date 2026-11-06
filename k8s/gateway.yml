@@ -22,3 +22,7 @@ spec:
       backendRefs: [{ name: order-service, port: 8081 }]
     - matches: [{ path: { type: PathPrefix, value: /api/payments } }]
       backendRefs: [{ name: payment-service, port: 8082 }]
+    - matches: [{ path: { type: PathPrefix, value: /api/inventory } }]
+      backendRefs: [{ name: inventory-service, port: 8083 }]
+    - matches: [{ path: { type: PathPrefix, value: /api/notifications } }]
+      backendRefs: [{ name: notification-service, port: 8084 }]

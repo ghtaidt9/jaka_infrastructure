@@ -1,0 +1,8 @@
+image: { repository: inventory-service }
+port: 8083
+contextPath: /api/inventory
+env:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://inventory-db:5432/inventorydb
+  SPRING_DATASOURCE_USERNAME: inventory_user
+  KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
+secretName: inventory-service-secret

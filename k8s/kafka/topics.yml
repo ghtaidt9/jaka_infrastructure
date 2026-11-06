@@ -1,11 +1,35 @@
 apiVersion: kafka.strimzi.io/v1
 kind: KafkaTopic
 metadata:
-  name: order-events
-  namespace: kafka
-  labels: { strimzi.io/cluster: jaka }
-spec:
-  partitions: 3
-  replicas: 1
-  config:
-    retention.ms: 604800000
+  { name: order-events, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 604800000 } }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  { name: inventory-events, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 604800000 } }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  { name: payment-events, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 604800000 } }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  { name: order-events-dlt, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 2592000000 } }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  { name: inventory-events-dlt, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 2592000000 } }
+---
+apiVersion: kafka.strimzi.io/v1
+kind: KafkaTopic
+metadata:
+  { name: payment-events-dlt, namespace: kafka, labels: { strimzi.io/cluster: jaka } }
+spec: { partitions: 3, replicas: 1, config: { retention.ms: 2592000000 } }

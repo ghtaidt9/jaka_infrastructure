@@ -1,0 +1,17 @@
+image: { repository: notification-service }
+port: 8084
+contextPath: /api/notifications
+env:
+  SPRING_DATASOURCE_URL: jdbc:postgresql://notification-db:5432/notificationdb
+  SPRING_DATASOURCE_USERNAME: notification_user
+  KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
+secretName: notification-service-secret
+replicaCount: 4
+resources:
+  requests: { cpu: 500m, memory: 1Gi }
+  limits: { memory: 1536Mi }
+autoscaling:
+  enabled: true
+  minReplicas: 4
+  maxReplicas: 10
+  
