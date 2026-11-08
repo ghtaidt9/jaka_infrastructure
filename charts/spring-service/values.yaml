@@ -15,3 +15,5 @@ autoscaling:
   targetCPU: 50
 env: {}
 secretName: ""
+serviceAccount:
+  create: true
