@@ -115,3 +115,69 @@ aws eks update-kubeconfig --region ap-southeast-1 --name jaka-mod-dev-eks
 kubectl get nodes
 terraform destroy -var-file terraform.tfvars    # right after practice: EKS + NAT bill by the hour
 ```
+
+## Run everything on kind with one command
+
+`scripts/cluster-up.sh` turns the manual steps of `LOCAL-K8S-SETUP.md` into one idempotent script: running it again rebuilds the images and upgrades the releases without recreating what already exists. `scripts/cluster-down.sh` deletes the whole kind cluster, including all database and Kafka data.
+
+### Prerequisites
+
+- `docker`, `kind`, `kubectl`, `helm`, `jq`, `curl`
+- The four service repos checked out next to this one (`../order-service`, `../payment-service`, ...)
+- A `.env` file at the repo root (git-ignored) with the 8 database passwords:
+
+```bash
+ORDER_DB_PASS=...            ORDER_DB_ADMIN_PASS=...
+PAYMENT_DB_PASS=...          PAYMENT_DB_ADMIN_PASS=...
+INVENTORY_DB_PASS=...        INVENTORY_DB_ADMIN_PASS=...
+NOTIFICATION_DB_PASS=...     NOTIFICATION_DB_ADMIN_PASS=...
+```
+
+### What the script does
+
+| Step | Action | Idempotent because |
+|---|---|---|
+| 1 | Create kind cluster `jaka` | skipped when `kind get clusters` already lists it |
+| 1b | Preload third-party images from the laptop's Docker into every node | `docker save --platform linux/amd64` + `kind load image-archive`; avoids slow per-node pulls |
+| 2 | Build the 4 service images with tag `dev-<unix time>`, `kind load` them | a new tag forces a rolling update |
+| 3 | Namespaces `dev`, `kafka`; Secrets `<svc>-service-secret`, `<svc>-db-admin` from `.env` | `create --dry-run=client -o yaml \| kubectl apply -f -` |
+| 4 | metrics-server v0.9.1 (+ `--kubelet-insecure-tls` patch), Envoy Gateway v1.9.2, Strimzi 1.3.1 | patch only when the flag is missing; Strimzi only when its Deployment is missing |
+| 5 | Kafka `jaka` (KRaft, 1 node) + topics | `kubectl apply` |
+| 6 | Postgres/Redis StatefulSets, role Jobs, Mailpit | `kubectl apply`; role SQL is `CREATE`-or-`ALTER` |
+| 7 | 4 Helm releases of `charts/spring-service` with `--set image.tag=$tag` | `helm upgrade --install` |
+| 8 | Gateway + HTTPRoute, wait for every Deployment | `kubectl apply` |
+| 9 | Delete old `dev-*` app images on the nodes, keeping the deployed tag | |
+
+```bash
+./scripts/cluster-down.sh      # optional: start from an empty cluster
+./scripts/cluster-up.sh
+kubectl get pods -A
+```
+
+Then reach the services through the gateway (keep this running in another terminal):
+
+```bash
+svc=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=web -o name)
+kubectl port-forward -n envoy-gateway-system $svc 8090:80
+curl localhost:8090/api/orders/actuator/health
+```
+
+On kind the Gateway reports `PROGRAMMED False` (`AddressNotAssigned`): there is no cloud load balancer to give it an address, which is why traffic goes through the port-forward.
+
+### Prove the Saga
+
+`scripts/saga-demo.sh` creates orders through the gateway and checks order, reservation, payment and stock for each branch:
+
+| Branch | How it is triggered | Expected |
+|---|---|---|
+| Success | `TEST-001`, amount 100 | order `CONFIRMED`, reservation `COMMITTED`, payment `COMPLETED`, stock −1 |
+| Out of stock | `SOLD-OUT-001` | order `CANCELLED` (`Insufficient stock`), no reservation, no payment |
+| Payment declined | amount 1500 (> 1000) | order `CANCELLED` (`CARD_DECLINED`), reservation `RELEASED`, stock unchanged |
+| Timeout + late payment (`--timeout`) | payment-service scaled to 0 for > 5 min, then back | order `CANCELLED` (`PAYMENT_TIMEOUT`), stock returned, late payment `REFUNDED` |
+
+```bash
+./scripts/saga-demo.sh             # first 3 branches, about 1 minute
+./scripts/saga-demo.sh --timeout   # all 4, about 8 minutes
+```
+
+Event contracts for every branch: `docs/event-catalog.md` in the services repo.
