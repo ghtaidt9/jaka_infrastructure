@@ -2,7 +2,16 @@ locals {
   project     = "jaka-mod"
   environment = "dev-eks"
   name_prefix = "${local.project}-${local.environment}"
-  services    = toset(["order-service", "payment-service", "inventory-service", "notification-service"])
+
+  apps = {
+    order        = { db_name = "orderdb" }
+    payment      = { db_name = "paymentdb" }
+    inventory    = { db_name = "inventorydb" }
+    notification = { db_name = "notificationdb" }
+  }
+
+  # tên ServiceAccount = tên Helm release = "<key>-service"
+  services = toset([for k in keys(local.apps) : "${k}-service"])
 }
 
 # VPC riêng cho EKS - không dùng chung với envs/dev
@@ -31,4 +40,59 @@ module "eks" {
   node_instance_type = "t3.medium"
   node_min           = 2
   node_max           = 4
+}
+
+
+module "security" {
+  source = "../../modules/security"
+
+  name_prefix            = local.name_prefix
+  create_ssm_caller_user = false
+}
+
+module "storage" {
+  source = "../../modules/storage"
+
+  name_prefix     = local.name_prefix
+  tiered_prefixes = [for k in keys(local.apps) : "${k}s"]
+  force_destroy   = true
+}
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  services    = toset(keys(local.apps))
+  name_prefix = local.name_prefix
+}
+
+module "redis" {
+  source = "../../modules/redis"
+
+  name_prefix                    = local.name_prefix
+  private_subnet_ids             = module.network.private_subnet_ids
+  security_group_id              = module.network.redis_sg_id
+  kms_key_arn                    = module.security.kms_key_arn
+  num_cache_clusters             = 1
+  secret_recovery_window_in_days = 0
+}
+
+module "postgres" {
+  source   = "../../modules/postgres"
+  for_each = local.apps
+
+  name_prefix    = local.name_prefix
+  service        = each.key
+  db_name        = each.value.db_name
+  admin_username = "${each.key}_admin"
+  app_username   = "${each.key}_user"
+
+  private_subnet_ids = module.network.private_subnet_ids
+  security_group_id  = module.network.rds_sg_id
+  kms_key_id         = module.security.kms_key_id
+  kms_key_arn        = module.security.kms_key_arn
+
+  multi_az                       = false
+  skip_final_snapshot            = true
+  deletion_protection            = false
+  secret_recovery_window_in_days = 0
 }

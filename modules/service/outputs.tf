@@ -23,11 +23,6 @@ output "log_group_name" {
   value       = aws_cloudwatch_log_group.app.name
 }
 
-output "ecr_repository_url" {
-  description = "ECR repository URL for this service's images"
-  value       = aws_ecr_repository.this.repository_url
-}
-
 output "image_tag_parameter_name" {
   description = "SSM parameter holding the image tag the ASG boots"
   value       = aws_ssm_parameter.image_tag.name

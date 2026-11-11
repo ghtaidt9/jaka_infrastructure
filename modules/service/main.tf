@@ -10,55 +10,6 @@ locals {
   ecr_registry = "${local.account_id}.dkr.ecr.${local.region}.amazonaws.com"
 }
 
-# ECR repository
-resource "aws_ecr_repository" "this" {
-  name                 = "${local.full_name}-service"
-  image_tag_mutability = "MUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
-
-  encryption_configuration {
-    encryption_type = "AES256"
-  }
-}
-
-resource "aws_ecr_lifecycle_policy" "this" {
-  repository = aws_ecr_repository.this.name
-
-  policy = jsonencode({
-    rules = [
-      {
-        rulePriority = 1
-        description  = "Expire untagged images after one day"
-        selection = {
-          tagStatus   = "untagged"
-          countType   = "sinceImagePushed"
-          countUnit   = "days"
-          countNumber = 1
-        }
-        action = {
-          type = "expire"
-        }
-      },
-      {
-        rulePriority = 2
-        description  = "Keep the ${var.ecr_keep_tagged_images} most recent version images"
-        selection = {
-          tagStatus     = "tagged"
-          tagPrefixList = ["v"]
-          countType     = "imageCountMoreThan"
-          countNumber   = var.ecr_keep_tagged_images
-        }
-        action = {
-          type = "expire"
-        }
-      }
-    ]
-  })
-}
-
 # Image tag the ASG boots. Terraform only seeds it; the deploy script owns it.
 resource "aws_ssm_parameter" "image_tag" {
   name  = "/${var.name_prefix}/${var.service}-image-tag"

@@ -7,6 +7,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0" # terraform-aws-modules/eks v21 needs aws >= 6
     }
+    random = {
+      source  = "hashicorp/random"
+      version = "~> 3.6"
+    }
   }
   # Partial config - the rest comes from backend.hcl:
   #  terraform init -backend-config backend.hcl

@@ -38,6 +38,13 @@ module "storage" {
   force_destroy   = var.s3_force_destroy
 }
 
+module "ecr" {
+  source = "../modules/ecr"
+
+  services    = toset(keys(var.services))
+  name_prefix = local.name_prefix
+}
+
 module "alb" {
   source = "../modules/alb"
 
@@ -135,6 +142,7 @@ module "service" {
   s3_bucket_arn      = module.storage.bucket_arn
   metrics_namespace  = local.metrics_namespace
   log_retention_days = var.log_retention_days
+  repository_url     = module.ecr.repository_urls[each.key]
 }
 
 module "observability" {

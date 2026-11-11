@@ -116,10 +116,9 @@ variable "image_tag" {
   default     = "latest"
 }
 
-variable "ecr_keep_tagged_images" {
-  description = "How many v* tagged images the ECR lifecycle policy keeps"
-  type        = number
-  default     = 10
+variable "repository_url" {
+  description = "ECR repository URL from modules/ecr"
+  type        = string
 }
 
 ########################

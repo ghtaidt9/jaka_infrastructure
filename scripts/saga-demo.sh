@@ -15,7 +15,8 @@ sku=TEST-001
 failures=0
 
 order_status() {   # $1 = order id → "STATUS reason"
-    curl -sf "$base/api/orders" | jq -r --argjson id "$1" '.[] | select(.id == $id) | "\(.status) \(.cancelReason // "")"'
+    # trailing slash: /api/orders is the context path itself, Spring answers it with a 302
+    curl -sf "$base/api/orders/" | jq -r --argjson id "$1" '.[] | select(.id == $id) | "\(.status) \(.cancelReason // "")"'
 }
 
 stock() {          # available/reserved of $sku
@@ -28,14 +29,17 @@ reservation() {    # $1 = order id → reservation status, or "none"
 }
 
 payment() {        # $1 = order id → payment status, or "none"
-    curl -sf "$base/api/payments" | jq -r --argjson id "$1" \
+    curl -sf "$base/api/payments/" | jq -r --argjson id "$1" \
         '[.[] | select(.orderId == $id) | .status] | first // "none"'
 }
 
 create_order() {   # $1 = customer, $2 = amount, $3 = sku → order id
-    curl -sf -X POST "$base/api/orders" -H 'Content-Type: application/json' \
+    local id
+    id=$(curl -sf -X POST "$base/api/orders/" -H 'Content-Type: application/json' \
         -d "{\"customerName\":\"$1\",\"totalAmount\":$2,\"currency\":\"USD\",\"productSku\":\"$3\",\"quantity\":1}" \
-        | jq -r '.id'
+        | jq -r '.id // empty')
+    [[ -n $id ]] || { echo "POST /api/orders/ failed" >&2; exit 1; }
+    echo "$id"
 }
 
 wait_status() {    # $1 = order id, $2 = expected status, $3 = timeout seconds
@@ -95,7 +99,8 @@ if [[ ${1:-} == --timeout ]]; then
     echo "4) Timeout: payment-service down > 5 min, then comes back late"
     replicas=$(kubectl get deploy payment-service -n dev -o jsonpath='{.spec.replicas}')
     kubectl scale deploy payment-service -n dev --replicas=0 >/dev/null
-    kubectl rollout status deploy/payment-service -n dev --timeout=2m >/dev/null
+    # rollout status returns while pods are still Terminating (and still consuming): wait until they are gone
+    kubectl wait --for=delete pod -l app=payment-service -n dev --timeout=2m >/dev/null
     before=$(stock)
     id=$(create_order "Dave" 100 "$sku")
     echo "   order $id created, waiting for OrderTimeoutJob (5 min + up to 60 s scan delay)..."

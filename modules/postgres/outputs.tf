@@ -40,7 +40,7 @@ output "admin_secret_arn" {
 
 output "app_secret_arn" {
   description = "ARN of the app-user secret. Read from the secret version so consumers wait until a value exists"
-  value       = aws_secretsmanager_secret_version.app.arn
+  value       = aws_secretsmanager_secret.app.arn
 }
 
 output "db_url_parameter_name" {

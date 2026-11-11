@@ -30,21 +30,21 @@ mock_provider "cloudinit" {}
 mock_provider "null" {}
 
 variables {
-  name_prefix = "jaka-mod-dev-eks"
+  name_prefix        = "jaka-mod-dev-eks"
   kubernetes_version = "1.35"
-  vpc_id = "vpc-123"
+  vpc_id             = "vpc-123"
   private_subnet_ids = ["subnet-a", "subnet-b"]
   node_instance_type = "t3.medium"
-  node_min = 2
-  node_max = 4
+  node_min           = 2
+  node_max           = 4
 }
 
 run "block_node_min_less_than_2" {
-    command = plan
-    variables {
-      node_min = 1
-    }
-    expect_failures = [ var.node_min ]
+  command = plan
+  variables {
+    node_min = 1
+  }
+  expect_failures = [var.node_min]
 }
 
 run "block_1_subnet" {
@@ -52,7 +52,7 @@ run "block_1_subnet" {
   variables {
     private_subnet_ids = ["subnet-a"]
   }
-  expect_failures = [ var.private_subnet_ids ]
+  expect_failures = [var.private_subnet_ids]
 }
 
 run "valid" {
