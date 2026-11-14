@@ -44,7 +44,7 @@ jobs:
     strategy:
       matrix:
         # env: [dev, prod]
-        env: [dev, dev-eks]
+        env: [dev, dev-eks, shared]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

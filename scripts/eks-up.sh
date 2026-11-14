@@ -9,12 +9,12 @@ app_root=..
 tag=${TAG:-eks-$(date +%s)}
 
 # Every value that only exists after `terraform apply` is read from here - never typed by hand
-tf_out() { terraform -chdir=envs/dev-eks output -json "$1"; }
+tf_out() { terraform -chdir=envs/shared output -json "$1"; }
 tf_raw() { terraform -chdir=envs/dev-eks output -raw "$1"; }
 region=$(tf_raw region)
 cluster=$(tf_raw cluster_name)
 vpc_id=$(tf_raw vpc_id)
-ecr_urls=$(tf_out ecr_repository_urls)
+ecr_urls=$(terraform -chdir=envs/shared output -json ecr_repository_urls)
 db_hosts=$(tf_out db_endpoints)
 admin_arns=$(tf_out db_admin_secret_arns)
 redis_host=$(tf_raw redis_primary_endpoint)

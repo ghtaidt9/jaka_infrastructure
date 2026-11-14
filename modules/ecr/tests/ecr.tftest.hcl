@@ -51,3 +51,17 @@ run "output_keyed_by_service" {
     error_message = "repository_urls must be keyed by the short service name."
   }
 }
+
+run "ci_settings_reach_resources" {
+  command = plan
+
+  variables {
+    image_tag_mutability = "IMMUTABLE"
+    tag_prefixes         = ["sha-"]
+  }
+
+  assert {
+    condition     = aws_ecr_repository.this["order"].image_tag_mutability == "IMMUTABLE"
+    error_message = "image_tag_mutability was not passed down to the resource"
+  }
+}

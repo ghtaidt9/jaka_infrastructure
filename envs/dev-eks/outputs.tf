@@ -23,10 +23,11 @@ output "kubeconfig_command" {
   value       = "aws eks update-kubeconfig --region ${var.region} --name ${module.eks.cluster_name}"
 }
 
-output "ecr_repository_urls" {
-  description = "ECR repository urls"
-  value       = module.ecr.repository_urls
-}
+# MOVED TO shared
+# output "ecr_repository_urls" {
+#   description = "ECR repository urls"
+#   value       = module.ecr.repository_urls
+# }
 
 output "db_endpoints" {
   description = "DB urls"

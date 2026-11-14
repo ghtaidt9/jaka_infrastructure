@@ -3,7 +3,7 @@ resource "aws_ecr_repository" "this" {
   for_each = var.services
 
   name                 = "${var.name_prefix}-${each.key}-service"
-  image_tag_mutability = "MUTABLE"
+  image_tag_mutability = var.image_tag_mutability
 
   image_scanning_configuration {
     scan_on_push = true
@@ -40,7 +40,7 @@ resource "aws_ecr_lifecycle_policy" "this" {
         description  = "Keep the ${var.keep_tagged_images} most recent version images"
         selection = {
           tagStatus     = "tagged"
-          tagPrefixList = ["v"]
+          tagPrefixList = var.tag_prefixes
           countType     = "imageCountMoreThan"
           countNumber   = var.keep_tagged_images
         }

@@ -58,12 +58,13 @@ module "storage" {
   force_destroy   = true
 }
 
-module "ecr" {
-  source = "../../modules/ecr"
+# MOVED TO shared
+# module "ecr" {
+#   source = "../../modules/ecr"
 
-  services    = toset(keys(local.apps))
-  name_prefix = local.name_prefix
-}
+#   services    = toset(keys(local.apps))
+#   name_prefix = local.name_prefix
+# }
 
 module "redis" {
   source = "../../modules/redis"

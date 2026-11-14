@@ -15,7 +15,24 @@ variable "services" {
 
 
 variable "keep_tagged_images" {
-  description = "How many v* tagged images the ECR lifecycle policy keeps"
+  description = "How many tagged images the ECR lifecycle policy keeps"
   type        = number
   default     = 10
+}
+
+variable "image_tag_mutability" {
+  description = "MUTABLE allows overwriting tags; IMMUTABLE forbids it (used by CI)"
+  type        = string
+  default     = "MUTABLE"
+
+  validation {
+    condition     = contains(["MUTABLE", "IMMUTABLE"], var.image_tag_mutability)
+    error_message = "image_tag_mutability must be MUTABLE or IMMUTABLE"
+  }
+}
+
+variable "tag_prefixes" {
+  description = "Tag prefixes kept by the lifecycle policy (rule 2)"
+  type        = list(string)
+  default     = ["v"]
 }
