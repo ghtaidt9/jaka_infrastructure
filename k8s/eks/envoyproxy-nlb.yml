@@ -1,0 +1,14 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: nlb
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: Kubernetes
+    kubernetes:
+      envoyService:
+        annotations:
+          service.beta.kubernetes.io/aws-load-balancer-type: external
+          service.beta.kubernetes.io/aws-load-balancer-scheme: internet-facing
+          service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip

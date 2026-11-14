@@ -24,10 +24,10 @@ resource "aws_subnet" "public" {
   availability_zone       = each.key
   map_public_ip_on_launch = true
 
-  tags = {
+  tags = merge({
     Name = "${var.name_prefix}-public-${each.value + 1}"
     Tier = "public"
-  }
+  }, var.public_subnet_tags)
 }
 
 resource "aws_subnet" "private" {
@@ -37,10 +37,10 @@ resource "aws_subnet" "private" {
   cidr_block        = var.private_subnet_cidrs[each.value]
   availability_zone = each.key
 
-  tags = {
+  tags = merge({
     Name = "${var.name_prefix}-private-${each.value + 1}"
     Tier = "private"
-  }
+  }, var.private_subnet_tags)
 }
 
 

@@ -76,7 +76,7 @@ resource "aws_launch_template" "this" {
   user_data = base64encode(templatefile("${path.module}/templates/service-bootstrap.sh.tpl", {
     region                = local.region
     ecr_registry          = local.ecr_registry
-    image_repo            = aws_ecr_repository.this.repository_url
+    image_repo            = var.repository_url
     image_tag_param       = aws_ssm_parameter.image_tag.name
     container_name        = local.container_name
     container_port        = aws_lb_target_group.this.port

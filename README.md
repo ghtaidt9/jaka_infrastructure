@@ -41,3 +41,143 @@ Both replace the running version of a service gradually, without taking it fully
 - **Rollback:** K8s rollback is cheap because the previous ReplicaSet is still there. On the ASG, rollback is just another deployment.
 - **Health checks:** Both need a real health gate to be zero-downtime. On AWS that is the target group health check; on K8s it is the readinessProbe, which this repo adds in week 7.
 - **Shared pitfall:** neither one rolls back automatically by default. A bad version leaves the update stuck, and someone has to undo it.
+
+## EKS (Week 10): `modules/eks` + `envs/dev-eks`
+
+The same Spring Boot services that run on kind locally can run on Amazon EKS. EKS is a separate stack next to the Month 1 EC2 stack: it does not replace or modify `envs/dev`.
+
+### Layout
+
+```
+modules/
+├── network/            shared; gained public_subnet_tags / private_subnet_tags (default {}, so envs/dev is unchanged)
+└── eks/                wraps terraform-aws-modules/eks/aws ~> 21.0
+    └── tests/          mock-provider tests (no AWS account needed)
+envs/
+├── dev/                Month 1: VPC + ALB + ASG + RDS + ElastiCache (aws ~> 5.50)
+└── dev-eks/            VPC + EKS cluster + Pod Identity roles (aws ~> 6.0)
+```
+
+`envs/dev-eks` calls `modules/network` and `modules/eks` directly. It does not go through `stack/`, which is the EC2/ASG/RDS bundle.
+
+### Why a separate stack and state file
+
+- **Lifecycle:** the EKS control plane costs ~0.10 USD/hour even with no Pods. `terraform destroy` in `envs/dev-eks` removes only EKS; `envs/dev` and its RDS data stay.
+- **Provider version:** EKS module v21 needs `aws >= 6.0`, `envs/dev` pins `~> 5.50`. Shared modules declare a minimum (`modules/network`: `>= 5.50`) and each root pins its own major version.
+- **Blast radius:** a failed apply or broken state in one stack cannot touch the other.
+- **Same bucket, different key:** `dev/terraform.tfstate` and `dev-eks/terraform.tfstate`, both with S3-native locking (`use_lockfile`).
+
+### kind vs EKS
+
+| | kind (local) | EKS (`envs/dev-eks`) |
+|---|---|---|
+| Control plane | Container on the laptop | Managed by AWS, outside the VPC, HA across 3 AZs |
+| Nodes | Containers (`jaka-worker`, `jaka-worker2`) | EC2 managed node group, 2–4 × `t3.medium` in private subnets |
+| Pod IP | Docker network (kindnet) | Real VPC IP per Pod (VPC CNI), so private subnets are `/20`, not `/24` |
+| Load balancer | None (`AddressNotAssigned`), port-forward 8090 | NLB/ALB via AWS Load Balancer Controller, using the `kubernetes.io/role/*elb` subnet tags |
+| Storage | `standard` (local-path) | EBS `gp3` (`aws-ebs-csi-driver` addon) |
+| Pod → AWS permissions | None | EKS Pod Identity, one IAM role per ServiceAccount |
+| Cost | 0 | Control plane + EC2 nodes + NAT gateway, billed hourly |
+
+### Pod Identity vs the Month 1 instance profile
+
+On the EC2 stack, `modules/service/iam.tf` attaches an IAM role to the **instance profile**: every process on the machine gets the same permissions (SSM parameters, Secrets Manager, KMS, S3 prefix).
+
+On EKS one node runs Pods from **several** services, so a node-wide role would let `payment-service` read `order-service` secrets. `envs/dev-eks/pod-identity.tf` instead creates, per service:
+
+1. an IAM role whose trust policy allows only `pods.eks.amazonaws.com` (`sts:AssumeRole`, `sts:TagSession`)
+2. an inline policy limited to `ssm:GetParameter*` on `/jaka-mod/dev-eks/<service>/*`
+3. an `aws_eks_pod_identity_association` binding that role to ServiceAccount `<service>` in namespace `dev`
+
+The Helm chart creates the ServiceAccount (`templates/serviceaccount.yml`, name = release name) and the Deployment sets `serviceAccountName`. IRSA/OIDC is disabled (`enable_irsa = false`) because Pod Identity replaces it.
+
+### Endpoint access
+
+`dev-eks` uses a public API endpoint (still IAM-authenticated) so `kubectl` works from a laptop. For production the plan is a private endpoint, reached through an SSM port-forward via an instance inside the VPC (the same pattern used to reach RDS), with deployments done by GitOps instead of CI pushing to the cluster.
+
+### Verify without an AWS account
+
+```bash
+# from the repo root
+(cd modules/eks && terraform init && terraform test)    # 3 runs: node_min < 2 rejected, 1 subnet rejected, valid plan
+(cd envs/dev-eks && terraform init -backend=false && terraform validate)
+```
+
+CI runs the same checks (`test` matrix includes `modules/eks`, `validate-envs` includes `dev-eks`), plus `fmt`, `tflint` and `checkov`.
+
+### Apply for real
+
+```bash
+cd envs/dev-eks
+terraform init -backend-config backend.hcl      # replace <ACCOUNT_ID> first
+terraform apply -var-file terraform.tfvars
+aws eks update-kubeconfig --region ap-southeast-1 --name jaka-mod-dev-eks
+kubectl get nodes
+terraform destroy -var-file terraform.tfvars    # right after practice: EKS + NAT bill by the hour
+```
+
+## Run everything on kind with one command
+
+`scripts/cluster-up.sh` turns the manual steps of `LOCAL-K8S-SETUP.md` into one idempotent script: running it again rebuilds the images and upgrades the releases without recreating what already exists. `scripts/cluster-down.sh` deletes the whole kind cluster, including all database and Kafka data.
+
+### Prerequisites
+
+- `docker`, `kind`, `kubectl`, `helm`, `jq`, `curl`
+- The four service repos checked out next to this one (`../order-service`, `../payment-service`, ...)
+- A `.env` file at the repo root (git-ignored) with the 8 database passwords:
+
+```bash
+ORDER_DB_PASS=...            ORDER_DB_ADMIN_PASS=...
+PAYMENT_DB_PASS=...          PAYMENT_DB_ADMIN_PASS=...
+INVENTORY_DB_PASS=...        INVENTORY_DB_ADMIN_PASS=...
+NOTIFICATION_DB_PASS=...     NOTIFICATION_DB_ADMIN_PASS=...
+```
+
+### What the script does
+
+| Step | Action | Idempotent because |
+|---|---|---|
+| 1 | Create kind cluster `jaka` | skipped when `kind get clusters` already lists it |
+| 1b | Preload third-party images from the laptop's Docker into every node | `docker save --platform linux/amd64` + `kind load image-archive`; avoids slow per-node pulls |
+| 2 | Build the 4 service images with tag `dev-<unix time>`, `kind load` them | a new tag forces a rolling update |
+| 3 | Namespaces `dev`, `kafka`; Secrets `<svc>-service-secret`, `<svc>-db-admin` from `.env` | `create --dry-run=client -o yaml \| kubectl apply -f -` |
+| 4 | metrics-server v0.9.1 (+ `--kubelet-insecure-tls` patch), Envoy Gateway v1.9.2, Strimzi 1.3.1 | patch only when the flag is missing; Strimzi only when its Deployment is missing |
+| 5 | Kafka `jaka` (KRaft, 1 node) + topics | `kubectl apply` |
+| 6 | Postgres/Redis StatefulSets, role Jobs, Mailpit | `kubectl apply`; role SQL is `CREATE`-or-`ALTER` |
+| 7 | 4 Helm releases of `charts/spring-service` with `--set image.tag=$tag` | `helm upgrade --install` |
+| 8 | Gateway + HTTPRoute, wait for every Deployment | `kubectl apply` |
+| 9 | Delete old `dev-*` app images on the nodes, keeping the deployed tag | |
+
+```bash
+./scripts/cluster-down.sh      # optional: start from an empty cluster
+./scripts/cluster-up.sh
+kubectl get pods -A
+```
+
+Then reach the services through the gateway (keep this running in another terminal):
+
+```bash
+svc=$(kubectl get svc -n envoy-gateway-system -l gateway.envoyproxy.io/owning-gateway-name=web -o name)
+kubectl port-forward -n envoy-gateway-system $svc 8090:80
+curl localhost:8090/api/orders/actuator/health
+```
+
+On kind the Gateway reports `PROGRAMMED False` (`AddressNotAssigned`): there is no cloud load balancer to give it an address, which is why traffic goes through the port-forward.
+
+### Prove the Saga
+
+`scripts/saga-demo.sh` creates orders through the gateway and checks order, reservation, payment and stock for each branch:
+
+| Branch | How it is triggered | Expected |
+|---|---|---|
+| Success | `TEST-001`, amount 100 | order `CONFIRMED`, reservation `COMMITTED`, payment `COMPLETED`, stock −1 |
+| Out of stock | `SOLD-OUT-001` | order `CANCELLED` (`Insufficient stock`), no reservation, no payment |
+| Payment declined | amount 1500 (> 1000) | order `CANCELLED` (`CARD_DECLINED`), reservation `RELEASED`, stock unchanged |
+| Timeout + late payment (`--timeout`) | payment-service scaled to 0 for > 5 min, then back | order `CANCELLED` (`PAYMENT_TIMEOUT`), stock returned, late payment `REFUNDED` |
+
+```bash
+./scripts/saga-demo.sh             # first 3 branches, about 1 minute
+./scripts/saga-demo.sh --timeout   # all 4, about 8 minutes
+```
+
+Event contracts for every branch: `docs/event-catalog.md` in the services repo.

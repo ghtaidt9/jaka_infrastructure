@@ -35,5 +35,5 @@ output "port_parameter_name" {
 
 output "auth_secret_arn" {
   description = "ARN of the AUTH-token secret. Read from the secret version so consumers wait until a value exists"
-  value       = aws_secretsmanager_secret_version.auth.arn
+  value       = aws_secretsmanager_secret.auth.arn
 }

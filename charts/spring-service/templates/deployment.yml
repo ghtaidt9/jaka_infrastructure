@@ -49,3 +49,6 @@ spec:
           lifecycle:
             preStop:
               sleep: { seconds: 5 }
+      {{- if .Values.serviceAccount.create }}
+      serviceAccountName: {{include "spring-service.fullname" .}} 
+      {{- end }}

@@ -1,0 +1,9 @@
+port: 8083
+contextPath: /api/inventory
+env:
+  SPRING_DATASOURCE_USERNAME: inventory_user
+  SPRING_DATA_REDIS_SSL_ENABLED: "true"
+  KAFKA_BOOTSTRAP: jaka-kafka-bootstrap.kafka:9092
+secretName: inventory-service-secret
+replicaCount: 1
+autoscaling: { enabled: true, minReplicas: 1, maxReplicas: 3, targetCPU: 50 }

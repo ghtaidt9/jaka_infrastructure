@@ -25,7 +25,7 @@ output "asg_names" {
 
 output "ecr_repository_urls" {
   description = "ECR repository URL per service"
-  value       = { for k, s in module.service : k => s.ecr_repository_url }
+  value       = module.ecr.repository_urls
 }
 
 output "image_tag_parameters" {

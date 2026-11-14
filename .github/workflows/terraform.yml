@@ -26,6 +26,8 @@ jobs:
           - modules/redis
           - modules/service
           - modules/observability
+          - modules/eks
+          - modules/ecr
           - stack
     steps:
       - uses: actions/checkout@v4
@@ -42,7 +44,7 @@ jobs:
     strategy:
       matrix:
         # env: [dev, prod]
-        env: [dev]
+        env: [dev, dev-eks, shared]
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3

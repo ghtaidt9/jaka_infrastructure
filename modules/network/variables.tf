@@ -72,3 +72,15 @@ variable "ssh_allowed_cidr" {
   type        = string
   default     = null
 }
+
+variable "public_subnet_tags" {
+  description = "Extra tags for the public subnets, e.g. kubenetes.io/role/elb = 1 for EKS"
+  type        = map(string)
+  default     = {}
+}
+
+variable "private_subnet_tags" {
+  description = "Extra tags for the private subnets, e.g. kubenetes.io/role/internal-elb = 1 for EKS"
+  type        = map(string)
+  default     = {}
+}
