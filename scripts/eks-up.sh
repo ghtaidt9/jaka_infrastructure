@@ -6,15 +6,15 @@ cd "$(dirname "$0")/.."
 
 services=(order payment inventory notification)
 app_root=..
-tag=${TAG:-eks-$(date +%s)}
+# tag=${TAG:-eks-$(date +%s)}
 
 # Every value that only exists after `terraform apply` is read from here - never typed by hand
-tf_out() { terraform -chdir=envs/shared output -json "$1"; }
+tf_out() { terraform -chdir=envs/dev-eks output -json "$1"; }
 tf_raw() { terraform -chdir=envs/dev-eks output -raw "$1"; }
 region=$(tf_raw region)
 cluster=$(tf_raw cluster_name)
 vpc_id=$(tf_raw vpc_id)
-ecr_urls=$(terraform -chdir=envs/shared output -json ecr_repository_urls)
+# ecr_urls=$(terraform -chdir=envs/shared output -json ecr_repository_urls)
 db_hosts=$(tf_out db_endpoints)
 admin_arns=$(tf_out db_admin_secret_arns)
 redis_host=$(tf_raw redis_primary_endpoint)
@@ -23,14 +23,14 @@ pick() { jq -r --arg s "$2" '.[$s]' <<<"$1"; }    # pick "$ecr_urls" order -> va
 # 1. kubeconfig -> kubectl/helm now talk to EKS, not kind
 aws eks update-kubeconfig --region "$region" --name "$cluster"
 
-# 2. image: build + push to ECR (replaces `kind load`)
-registry=$(pick "$ecr_urls" order); registry=${registry%%/*}    # 123456789012.dkr.ecr.<region>.amazonaws.com
-aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin "$registry"
-for svc in "${services[@]}"; do
-    repo=$(pick "$ecr_urls" "$svc")
-    docker build --platform linux/amd64 -t "$repo:$tag" "$app_root/$svc-service/$svc-service"
-    docker push "$repo:$tag"
-done
+# # 2. image: build + push to ECR (replaces `kind load`)
+# registry=$(pick "$ecr_urls" order); registry=${registry%%/*}    # 123456789012.dkr.ecr.<region>.amazonaws.com
+# aws ecr get-login-password --region "$region" | docker login --username AWS --password-stdin "$registry"
+# for svc in "${services[@]}"; do
+#     repo=$(pick "$ecr_urls" "$svc")
+#     docker build --platform linux/amd64 -t "$repo:$tag" "$app_root/$svc-service/$svc-service"
+#     docker push "$repo:$tag"
+# done
 
 # 3. namespace (no `kubectl create secret` here - ESO does that in step 6)
 for ns in dev kafka; do
@@ -39,8 +39,8 @@ done
 # 3b. infra ConfigMap per service: config that changes only when the infrastructure is rebuilt
 for svc in "${services[@]}"; do
     args=(--from-literal "SPRING_DATASOURCE_URL=jdbc:postgresql://$(pick "$db_hosts" "$svc"):5432/${svc}db?sslmode=require")
-    [[ $svc == order || $svc == payment ]] && args+=(--fromliteral "SPRING_DATA_REDIS_HOST=$redis_host")
-    kubectl create configmap $svc-service-infra" -n dev "${args[@]}" \
+    [[ $svc == order || $svc == payment ]] && args+=(--from-literal "SPRING_DATA_REDIS_HOST=$redis_host")
+    kubectl create configmap "$svc-service-infra" -n dev "${args[@]}" \
         --dry-run=client -o yaml | kubectl apply -f -
 done
 
@@ -94,17 +94,17 @@ kubectl wait kafka/jaka -n kafka --for=condition=Ready --timeout=10m
 kubectl apply -f k8s/kafka/topics.yml
 kubectl apply -f k8s/notification-service/mailpit.yml
 
-# 9. App: values/<svc>-eks.yml + values only known after apply via --set
-for svc in "${services[@]}"; do
-    extra=()
-    [[ $svc == order || $svc == payment ]] && extra=(--set env.SPRING_DATA_REDIS_HOST="$redis_host")
-    helm upgrade --install "$svc-service" charts/spring-service -n dev \
-        -f "charts/spring-service/values/$svc-eks.yml" \
-        --set image.repository="$(pick "$ecr_urls" "$svc")" \
-        --set image.tag="$tag" \
-        --set env.SPRING_DATASOURCE_URL="jdbc:postgresql://$(pick "$db_hosts" "$svc"):5432/${svc}db?sslmode=require" \
-        "${extra[@]}"
-done
+# # 9. App: values/<svc>-eks.yml + values only known after apply via --set
+# for svc in "${services[@]}"; do
+#     extra=()
+#     [[ $svc == order || $svc == payment ]] && extra=(--set env.SPRING_DATA_REDIS_HOST="$redis_host")
+#     helm upgrade --install "$svc-service" charts/spring-service -n dev \
+#         -f "charts/spring-service/values/$svc-eks.yml" \
+#         --set image.repository="$(pick "$ecr_urls" "$svc")" \
+#         --set image.tag="$tag" \
+#         --set env.SPRING_DATASOURCE_URL="jdbc:postgresql://$(pick "$db_hosts" "$svc"):5432/${svc}db?sslmode=require" \
+#         "${extra[@]}"
+# done
 
 # 10. gateway -> NLB
 #     gateway.yml is shared with kind: add parametersRef on the fly (sed) instead of editing the file.
