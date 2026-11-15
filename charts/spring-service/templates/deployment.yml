@@ -28,6 +28,9 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
           envFrom:
             - configMapRef: { name: {{ include "spring-service.fullname" . }} }
+            {{- range .Values.envFromConfigMaps }}
+            - configMapRef: { name: {{ . }} }
+            {{- end }}
             {{- with .Values.secretName }}
             - secretRef: { name: {{ . }} }
             {{- end }}

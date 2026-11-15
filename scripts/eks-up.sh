@@ -36,6 +36,13 @@ done
 for ns in dev kafka; do
     kubectl create namespace "$ns" --dry-run=client -o yaml | kubectl apply -f -
 done
+# 3b. infra ConfigMap per service: config that changes only when the infrastructure is rebuilt
+for svc in "${services[@]}"; do
+    args=(--from-literal "SPRING_DATASOURCE_URL=jdbc:postgresql://$(pick "$db_hosts" "$svc"):5432/${svc}db?sslmode=require")
+    [[ $svc == order || $svc == payment ]] && args+=(--fromliteral "SPRING_DATA_REDIS_HOST=$redis_host")
+    kubectl create configmap $svc-service-infra" -n dev "${args[@]}" \
+        --dry-run=client -o yaml | kubectl apply -f -
+done
 
 # 4. add-on
 kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/download/v0.9.1/components.yaml

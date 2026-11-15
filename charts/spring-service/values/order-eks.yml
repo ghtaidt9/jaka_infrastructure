@@ -7,3 +7,5 @@ env:
 secretName: order-service-secret
 replicaCount: 1
 autoscaling: { enabled: true, minReplicas: 1, maxReplicas: 3, targetCPU: 50 }
+envFromConfigMaps:
+  - order-service-infra

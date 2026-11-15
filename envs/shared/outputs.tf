@@ -12,3 +12,8 @@ output "gha_ci_role_arn" {
   description = "ARN of the role GitHub Actions assumes"
   value       = aws_iam_role.gha_ci.arn
 }
+
+output "gha_deploy_role_arn" {
+  description = "ARN of the deploy role for GitHub Actions"
+  value       = aws_iam_role.gha_deploy_dev.arn
+}
